@@ -96,10 +96,29 @@ type Store struct {
 	db *sql.DB
 }
 
+// parseTimeStr parses a datetime string stored by modernc.org/sqlite (text format).
+func parseTimeStr(s sql.NullString) time.Time {
+	if !s.Valid || s.String == "" {
+		return time.Time{}
+	}
+	formats := []string{
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s.String); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
 // scanRecord handles nullable columns when scanning a row
 func scanRecord(scanner interface{ Scan(...any) error }) (*Record, error) {
 	var r Record
-	var sentAt, createdAt sql.NullTime
+	var sentAt, createdAt sql.NullString
 	var messageID, errStr sql.NullString
 
 	err := scanner.Scan(&r.ID, &r.BrokerID, &r.BrokerName, &r.Email, &r.Template,
@@ -110,8 +129,8 @@ func scanRecord(scanner interface{ Scan(...any) error }) (*Record, error) {
 
 	r.MessageID = messageID.String
 	r.Error = errStr.String
-	r.SentAt = sentAt.Time
-	r.CreatedAt = createdAt.Time
+	r.SentAt = parseTimeStr(sentAt)
+	r.CreatedAt = parseTimeStr(createdAt)
 	return &r, nil
 }
 
@@ -327,13 +346,13 @@ func (s *Store) GetAllBrokerStatuses() (map[string]BrokerStatus, error) {
 	statuses := make(map[string]BrokerStatus)
 	for rows.Next() {
 		var bs BrokerStatus
-		var lastSent sql.NullTime
+		var lastSentStr sql.NullString // modernc.org/sqlite returns datetimes as text
 		var status string
 
-		if err := rows.Scan(&bs.BrokerID, &lastSent, &status, &bs.TotalSent); err != nil {
+		if err := rows.Scan(&bs.BrokerID, &lastSentStr, &status, &bs.TotalSent); err != nil {
 			return nil, fmt.Errorf("failed to scan broker status: %w", err)
 		}
-		bs.LastSent = lastSent.Time
+		bs.LastSent = parseTimeStr(lastSentStr)
 		bs.Status = Status(status)
 		statuses[bs.BrokerID] = bs
 	}
@@ -465,15 +484,72 @@ func (s *Store) GetAllBrokerResponses() ([]BrokerResponse, error) {
 	}
 	defer rows.Close()
 
+	return scanBrokerResponses(rows)
+}
+
+// GetBrokerResponses retrieves broker responses with optional filtering
+func (s *Store) GetBrokerResponses(responseType string, needsReview bool, limit int) ([]BrokerResponse, error) {
+	var query string
+	var args []interface{}
+
+	if responseType != "" && needsReview {
+		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject, email_body,
+			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
+			FROM broker_responses WHERE response_type = ? AND needs_review = 1 ORDER BY created_at DESC LIMIT ?`
+		args = []interface{}{responseType, limit}
+	} else if responseType != "" {
+		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject, email_body,
+			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
+			FROM broker_responses WHERE response_type = ? ORDER BY created_at DESC LIMIT ?`
+		args = []interface{}{responseType, limit}
+	} else if needsReview {
+		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject, email_body,
+			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
+			FROM broker_responses WHERE needs_review = 1 ORDER BY created_at DESC LIMIT ?`
+		args = []interface{}{limit}
+	} else {
+		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject, email_body,
+			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
+			FROM broker_responses ORDER BY created_at DESC LIMIT ?`
+		args = []interface{}{limit}
+	}
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all broker responses: %w", err)
+	}
+	defer rows.Close()
+
+	return scanBrokerResponses(rows)
+}
+
+// GetResponsesByBrokerID retrieves all responses for a specific broker.
+func (s *Store) GetResponsesByBrokerID(brokerID string) ([]BrokerResponse, error) {
+	query := `SELECT id, broker_id, broker_name, response_type, email_from, email_subject, email_body,
+		form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
+		FROM broker_responses WHERE broker_id = ? ORDER BY created_at DESC`
+
+	rows, err := s.db.Query(query, brokerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query responses for broker %s: %w", brokerID, err)
+	}
+	defer rows.Close()
+
+	return scanBrokerResponses(rows)
+}
+
+// scanBrokerResponses scans a rows result set into a slice of BrokerResponse.
+func scanBrokerResponses(rows *sql.Rows) ([]BrokerResponse, error) {
 	var responses []BrokerResponse
 	for rows.Next() {
 		var r BrokerResponse
 		var needsReviewInt int
+		var emailBody, formURL, confirmURL sql.NullString
 		var receivedAtStr, processedAtStr, createdAtStr sql.NullString
-		var formURL, confirmURL, emailBody sql.NullString
 
-		err := rows.Scan(&r.ID, &r.BrokerID, &r.BrokerName, &r.ResponseType, &r.EmailFrom, &r.EmailSubject, &emailBody,
-			&formURL, &confirmURL, &r.Confidence, &needsReviewInt, &receivedAtStr, &processedAtStr, &createdAtStr)
+		err := rows.Scan(&r.ID, &r.BrokerID, &r.BrokerName, &r.ResponseType, &r.EmailFrom, &r.EmailSubject,
+			&emailBody, &formURL, &confirmURL, &r.Confidence, &needsReviewInt,
+			&receivedAtStr, &processedAtStr, &createdAtStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan broker response: %w", err)
 		}
@@ -483,101 +559,9 @@ func (s *Store) GetAllBrokerResponses() ([]BrokerResponse, error) {
 		r.ConfirmURL = confirmURL.String
 		r.NeedsReview = needsReviewInt == 1
 
-		// Parse time strings
-		if receivedAtStr.Valid {
-			r.ReceivedAt, _ = time.Parse(time.RFC3339, receivedAtStr.String)
-			if r.ReceivedAt.IsZero() {
-				r.ReceivedAt, _ = time.Parse("2006-01-02 15:04:05", receivedAtStr.String)
-			}
-		}
-		if processedAtStr.Valid {
-			r.ProcessedAt, _ = time.Parse(time.RFC3339, processedAtStr.String)
-			if r.ProcessedAt.IsZero() {
-				r.ProcessedAt, _ = time.Parse("2006-01-02 15:04:05", processedAtStr.String)
-			}
-		}
-		if createdAtStr.Valid {
-			r.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr.String)
-			if r.CreatedAt.IsZero() {
-				r.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr.String)
-			}
-		}
-
-		responses = append(responses, r)
-	}
-
-	return responses, rows.Err()
-}
-
-// GetBrokerResponses retrieves broker responses with optional filtering
-func (s *Store) GetBrokerResponses(responseType string, needsReview bool, limit int) ([]BrokerResponse, error) {
-	var query string
-	var args []interface{}
-
-	if responseType != "" && needsReview {
-		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject,
-			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
-			FROM broker_responses WHERE response_type = ? AND needs_review = 1 ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{responseType, limit}
-	} else if responseType != "" {
-		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject,
-			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
-			FROM broker_responses WHERE response_type = ? ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{responseType, limit}
-	} else if needsReview {
-		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject,
-			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
-			FROM broker_responses WHERE needs_review = 1 ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{limit}
-	} else {
-		query = `SELECT id, broker_id, broker_name, response_type, email_from, email_subject,
-			form_url, confirm_url, confidence, needs_review, received_at, processed_at, created_at
-			FROM broker_responses ORDER BY created_at DESC LIMIT ?`
-		args = []interface{}{limit}
-	}
-
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query broker responses: %w", err)
-	}
-	defer rows.Close()
-
-	var responses []BrokerResponse
-	for rows.Next() {
-		var r BrokerResponse
-		var needsReviewInt int
-		var receivedAtStr, processedAtStr, createdAtStr sql.NullString
-		var formURL, confirmURL sql.NullString
-
-		err := rows.Scan(&r.ID, &r.BrokerID, &r.BrokerName, &r.ResponseType, &r.EmailFrom, &r.EmailSubject,
-			&formURL, &confirmURL, &r.Confidence, &needsReviewInt, &receivedAtStr, &processedAtStr, &createdAtStr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan broker response: %w", err)
-		}
-
-		r.FormURL = formURL.String
-		r.ConfirmURL = confirmURL.String
-		r.NeedsReview = needsReviewInt == 1
-
-		// Parse time strings (SQLite stores as TEXT)
-		if receivedAtStr.Valid {
-			r.ReceivedAt, _ = time.Parse(time.RFC3339, receivedAtStr.String)
-			if r.ReceivedAt.IsZero() {
-				r.ReceivedAt, _ = time.Parse("2006-01-02 15:04:05", receivedAtStr.String)
-			}
-		}
-		if processedAtStr.Valid {
-			r.ProcessedAt, _ = time.Parse(time.RFC3339, processedAtStr.String)
-			if r.ProcessedAt.IsZero() {
-				r.ProcessedAt, _ = time.Parse("2006-01-02 15:04:05", processedAtStr.String)
-			}
-		}
-		if createdAtStr.Valid {
-			r.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr.String)
-			if r.CreatedAt.IsZero() {
-				r.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr.String)
-			}
-		}
+		r.ReceivedAt = parseTimeStr(receivedAtStr)
+		r.ProcessedAt = parseTimeStr(processedAtStr)
+		r.CreatedAt = parseTimeStr(createdAtStr)
 
 		responses = append(responses, r)
 	}

@@ -1,0 +1,99 @@
+{{define "content"}}
+<div class="fade-in-up">
+    <!-- Header -->
+    <div class="flex items-center gap-4 mb-8">
+        <a href="/tasks" class="p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors text-muted">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </a>
+        <div>
+            <h1 class="font-display text-2xl font-bold text-primary">{{.BrokerName}}</h1>
+            <p class="text-secondary text-sm mt-0.5">Email responses — manual review</p>
+        </div>
+    </div>
+
+    {{if .Responses}}
+    <div class="space-y-6">
+        {{range .Responses}}
+        <div class="card p-6">
+            <!-- Response header -->
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <p class="text-sm font-semibold text-primary">{{.EmailSubject}}</p>
+                    <p class="text-xs text-muted mt-1">From: {{.EmailFrom}}</p>
+                    <p class="text-xs text-muted">Received: {{.ReceivedAt.Format "Jan 2, 2006 3:04 PM"}}</p>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="badge
+                        {{if eq .ResponseType "success"}}badge-success
+                        {{else if eq .ResponseType "rejected"}}badge-error
+                        {{else if eq .ResponseType "form_required"}}badge-warning
+                        {{else if eq .ResponseType "confirmation_required"}}badge-neutral
+                        {{else}}badge-neutral{{end}}">
+                        {{.ResponseType}}
+                    </span>
+                    {{if .NeedsReview}}
+                    <span class="badge" style="background: rgba(249,115,22,0.15); color: rgb(234,88,12);">Needs Review</span>
+                    {{end}}
+                    {{if gt .Confidence 0.0}}
+                    <span class="text-xs text-muted">{{printf "%.0f" .Confidence}}% confidence</span>
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- Email body -->
+            {{if .EmailBody}}
+            <div class="rounded-xl p-4 mb-4 font-mono text-xs text-secondary whitespace-pre-wrap overflow-x-auto" style="background: var(--bg-elevated); max-height: 400px; overflow-y: auto;">{{.EmailBody}}</div>
+            {{else}}
+            <p class="text-xs text-muted italic mb-4">Email body not stored</p>
+            {{end}}
+
+            <!-- URLs if present -->
+            {{if or .FormURL .ConfirmURL}}
+            <div class="space-y-2 mb-4">
+                {{if .FormURL}}
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-muted w-24">Form URL:</span>
+                    <a href="{{.FormURL}}" target="_blank" rel="noopener noreferrer" class="text-xs text-accent hover:underline truncate">{{.FormURL}}</a>
+                </div>
+                {{end}}
+                {{if .ConfirmURL}}
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-muted w-24">Confirm URL:</span>
+                    <a href="{{.ConfirmURL}}" target="_blank" rel="noopener noreferrer" class="text-xs text-accent hover:underline truncate">{{.ConfirmURL}}</a>
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+
+            <!-- Mark reviewed action -->
+            {{if .NeedsReview}}
+            <div class="pt-4 border-t border-[var(--border-subtle)] flex items-center gap-3">
+                <button
+                    class="btn btn-primary text-sm"
+                    hx-post="/api/pipeline/responses/{{.ID}}/reviewed"
+                    hx-target="closest .card"
+                    hx-swap="outerHTML"
+                    hx-confirm="Mark this response as reviewed?">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Mark as Reviewed
+                </button>
+                <span class="text-xs text-muted">This removes it from the review queue</span>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    {{else}}
+    <div class="card p-12 text-center">
+        <p class="text-secondary">No responses found for this broker.</p>
+        <a href="/tasks" class="btn btn-secondary mt-4">Back to Action Needed</a>
+    </div>
+    {{end}}
+</div>
+{{end}}
+
+{{template "layout" .}}

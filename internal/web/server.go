@@ -427,6 +427,7 @@ func (s *Server) setupRouter() *chi.Mux {
 	r.Post("/profiles/add", s.handleAddProfile)
 	r.Post("/profiles/{index}/delete", s.handleDeleteProfile)
 	r.Get("/pipeline", s.handlePipeline)
+	r.Get("/pipeline/responses", s.handlePipelineResponses)
 	r.Get("/tasks", s.handleTasks)
 	r.Get("/tasks/{taskID}", s.handleTaskDetail)
 	r.Get("/tasks/{taskID}/helper", s.handleTaskHelper)
@@ -1776,6 +1777,38 @@ func (s *Server) handlePipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.renderWithCSRF(w, r, "pipeline.html", data)
+}
+
+func (s *Server) handlePipelineResponses(w http.ResponseWriter, r *http.Request) {
+	if s.config == nil || len(s.config.AllProfiles()) == 0 {
+		http.Redirect(w, r, "/setup", http.StatusFound)
+		return
+	}
+
+	brokerID := r.URL.Query().Get("broker")
+	if brokerID == "" {
+		http.Redirect(w, r, "/pipeline", http.StatusFound)
+		return
+	}
+
+	var responses []history.BrokerResponse
+	if s.historyStore != nil {
+		responses, _ = s.historyStore.GetResponsesByBrokerID(brokerID)
+	}
+
+	brokerName := brokerID
+	if len(responses) > 0 {
+		brokerName = responses[0].BrokerName
+	}
+
+	data := map[string]interface{}{
+		"Title":      "Response Review — " + brokerName,
+		"BrokerID":   brokerID,
+		"BrokerName": brokerName,
+		"Responses":  responses,
+	}
+
+	s.renderWithCSRF(w, r, "response-detail.html", data)
 }
 
 func (s *Server) handleForms(w http.ResponseWriter, r *http.Request) {
