@@ -64,13 +64,20 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) Result {
 
 func sanitizeSMTPError(err error) error {
 	s := strings.ToLower(err.Error())
-	if strings.Contains(s, "auth") {
-		return fmt.Errorf("SMTP authentication failed")
+	if strings.Contains(s, "auth") || strings.Contains(s, "username") || strings.Contains(s, "password") {
+		return fmt.Errorf("SMTP authentication failed — check your Gmail address and app password")
 	}
-	if strings.Contains(s, "certificate") {
-		return fmt.Errorf("TLS certificate error")
+	if strings.Contains(s, "certificate") || strings.Contains(s, "tls") {
+		return fmt.Errorf("TLS connection error — ensure port 465 is correct for your provider")
 	}
-	return fmt.Errorf("SMTP error: check your configuration")
+	if strings.Contains(s, "sender") || strings.Contains(s, "from") {
+		return fmt.Errorf("Sender address rejected — the From address must match your SMTP account")
+	}
+	if strings.Contains(s, "connection refused") || strings.Contains(s, "dial") || strings.Contains(s, "timeout") {
+		return fmt.Errorf("Cannot connect to SMTP server — check the host/port or your network")
+	}
+	// Return the real error so it's diagnosable rather than silently swallowing it
+	return fmt.Errorf("SMTP error: %s", err.Error())
 }
 
 func (s *SMTPSender) sendWithTLS(addr string, auth smtp.Auth, from, to string, msg []byte) error {

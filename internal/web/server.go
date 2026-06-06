@@ -1418,7 +1418,6 @@ func (s *Server) handleSetupEmail(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		emailCfg := config.Email{
 			Provider: "smtp",
-			From:     session.Profile.Email,
 		}
 
 		errors := make(map[string]string)
@@ -1429,6 +1428,9 @@ func (s *Server) handleSetupEmail(w http.ResponseWriter, r *http.Request) {
 		emailCfg.SMTP.Username = strings.TrimSpace(r.FormValue("smtp_username"))
 		emailCfg.SMTP.Password = strings.TrimSpace(r.FormValue("smtp_password"))
 		emailCfg.SMTP.UseTLS = r.FormValue("smtp_tls") == "on"
+		// From must match the SMTP account — using the profile email as From causes
+		// Gmail to reject sends when the authenticated account differs from the From address.
+		emailCfg.From = emailCfg.SMTP.Username
 
 		// Validate required fields
 		if emailCfg.SMTP.Host == "" {
@@ -1552,10 +1554,12 @@ Eraser`, session.Profile.FirstName),
 		if result.Error != nil {
 			errMsg = result.Error.Error()
 		}
+		// For the setup test we show the real error (not sanitized) so the user can diagnose it.
+		// The sanitized version ("SMTP error: check your configuration") is too vague here.
 		w.Write([]byte(fmt.Sprintf(`
 			<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
 				<strong>Test failed:</strong> %s
-				<p class="mt-2 text-sm">Please check your email configuration and try again.</p>
+				<p class="mt-2 text-sm">Common causes: wrong app password, IMAP/SMTP not enabled in Gmail, or network issue.</p>
 			</div>
 			<div class="mt-4">
 				<a href="/setup/email" class="text-indigo-600 hover:text-indigo-800 font-medium">
