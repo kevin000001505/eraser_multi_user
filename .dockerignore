@@ -1,0 +1,23 @@
+# VCS
+.git
+.gitignore
+
+# Prebuilt binary (rebuilt in the image)
+eraser
+
+# Local state / secrets — never bake these into the image
+config.yaml
+*.local.yaml
+*.db
+pending_job.json
+screenshots/
+browser-data/
+*.log
+
+# Docs & docker meta (not needed inside the build context)
+README*.md
+CLAUDE.md
+Dockerfile
+docker-compose.yml
+.env
+.DS_Store

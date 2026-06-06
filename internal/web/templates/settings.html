@@ -1,0 +1,356 @@
+{{define "content"}}
+<div class="fade-in-up">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="font-display text-3xl font-bold text-primary">Settings</h1>
+        <p class="text-secondary mt-1">Manage your profile and email configuration</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Profiles Section -->
+        <div class="card p-6 lg:col-span-2">
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--accent-muted);">
+                        <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="font-display text-lg font-semibold text-primary">People Protected</h2>
+                        <p class="text-sm text-muted">Removal requests are sent for each person below</p>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('add-profile-form').classList.toggle('hidden')" class="btn btn-secondary">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Add Person
+                </button>
+            </div>
+
+            {{if .Profiles}}
+            <div class="space-y-3 mb-6">
+                {{range $i, $p := .Profiles}}
+                <div class="flex items-center justify-between p-4 rounded-xl" style="background: var(--bg-elevated);">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white" style="background: var(--accent);">
+                            {{slice $p.FirstName 0 1}}
+                        </div>
+                        <div>
+                            <p class="text-primary font-medium">{{$p.FirstName}} {{$p.LastName}}</p>
+                            <p class="text-sm text-muted">{{$p.Email}}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {{if eq $i 0}}<span class="badge badge-neutral text-xs">Primary</span>{{end}}
+                        <form method="POST" action="/profiles/{{$i}}/delete" onsubmit="return confirm('Remove {{$p.FirstName}} {{$p.LastName}}?')">
+                            <input type="hidden" name="gorilla.csrf.Token" value="{{$.CSRFToken}}">
+                            <button type="submit" class="p-1.5 rounded-lg text-muted hover:text-error hover:bg-red-500/10 transition-colors">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <p class="text-muted mb-4">No profiles configured.</p>
+            {{end}}
+
+            <!-- Add Profile Form (hidden by default) -->
+            <form id="add-profile-form" method="POST" action="/profiles/add" class="hidden border border-[var(--border-subtle)] rounded-xl p-4 space-y-4">
+                {{.CSRFField}}
+                <h3 class="font-medium text-primary">Add Person</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label">First Name *</label>
+                        <input type="text" name="first_name" class="input" placeholder="Jane" required>
+                    </div>
+                    <div>
+                        <label class="label">Last Name *</label>
+                        <input type="text" name="last_name" class="input" placeholder="Doe" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="label">Email Address *</label>
+                    <input type="email" name="email" class="input" placeholder="jane@example.com" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label">Phone</label>
+                        <input type="text" name="phone" class="input" placeholder="+1 555 000 0000">
+                    </div>
+                    <div>
+                        <label class="label">Date of Birth</label>
+                        <input type="text" name="dob" class="input" placeholder="YYYY-MM-DD">
+                    </div>
+                </div>
+                <div>
+                    <label class="label">Address</label>
+                    <input type="text" name="address" class="input" placeholder="123 Main St">
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="label">City</label>
+                        <input type="text" name="city" class="input" placeholder="Springfield">
+                    </div>
+                    <div>
+                        <label class="label">State</label>
+                        <input type="text" name="state" class="input" placeholder="IL">
+                    </div>
+                    <div>
+                        <label class="label">Zip</label>
+                        <input type="text" name="zip_code" class="input" placeholder="62701">
+                    </div>
+                </div>
+                <div>
+                    <label class="label">Country</label>
+                    <input type="text" name="country" class="input" placeholder="US">
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="btn btn-primary">Add Person</button>
+                    <button type="button" onclick="document.getElementById('add-profile-form').classList.add('hidden')" class="btn btn-ghost">Cancel</button>
+                </div>
+            </form>
+
+            <div class="mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                <a href="/setup/profile" class="btn btn-secondary">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    Edit Primary Profile
+                </a>
+            </div>
+        </div>
+
+        <!-- Email Configuration Section -->
+        <div class="card p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--accent-muted);">
+                    <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h2 class="font-display text-lg font-semibold text-primary">Email Configuration</h2>
+            </div>
+
+            {{if .Config}}
+            <div class="space-y-4">
+                <div class="flex items-start justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">Provider</p>
+                        <p class="text-primary font-medium">Gmail SMTP</p>
+                    </div>
+                    <span class="badge badge-success">Active</span>
+                </div>
+                <div class="flex items-start justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">From Address</p>
+                        <p class="text-secondary">{{.Config.Email.From}}</p>
+                    </div>
+                </div>
+                {{if eq .Config.Email.Provider "smtp"}}
+                <div class="flex items-start justify-between py-3">
+                    <div>
+                        <p class="text-sm text-muted">SMTP Server</p>
+                        <p class="text-secondary">{{.Config.Email.SMTP.Host}}:{{.Config.Email.SMTP.Port}}</p>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <p class="text-muted">No email configured.</p>
+            {{end}}
+
+            <div class="mt-6">
+                <a href="/setup/email" class="btn btn-secondary">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    Edit Email Settings
+                </a>
+            </div>
+        </div>
+
+        <!-- Inbox Monitoring Section -->
+        <div class="card p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--accent-muted);">
+                    <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="font-display text-lg font-semibold text-primary">Inbox Monitoring</h2>
+                    <p class="text-sm text-muted">Monitor your inbox for broker responses</p>
+                </div>
+            </div>
+
+            {{if and .Config .Config.Inbox .Config.Inbox.Enabled}}
+            <div class="space-y-4 mb-6">
+                <div class="flex items-center justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">Status</p>
+                        <p class="text-primary font-medium">Enabled</p>
+                    </div>
+                    <span class="badge badge-success">Active</span>
+                </div>
+                <div class="flex items-start justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">Email</p>
+                        <p class="text-secondary">{{.Config.Inbox.Email}}</p>
+                    </div>
+                </div>
+                <div class="flex items-start justify-between py-3">
+                    <div>
+                        <p class="text-sm text-muted">Provider</p>
+                        <p class="text-secondary">{{if eq .Config.Inbox.Provider "gmail"}}Gmail IMAP{{else}}{{.Config.Inbox.Provider}}{{end}}</p>
+                    </div>
+                </div>
+            </div>
+            <button type="button" onclick="document.getElementById('inbox-form').classList.toggle('hidden')" class="btn btn-secondary w-full">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                Edit Settings
+            </button>
+            {{else}}
+            <div class="p-4 rounded-xl mb-6" style="background: var(--bg-elevated);">
+                <p class="text-secondary text-sm">
+                    Enable inbox monitoring to automatically detect broker responses like confirmation links and form requirements.
+                </p>
+            </div>
+            {{end}}
+
+            <form id="inbox-form" method="POST" action="/settings/inbox" class="{{if and .Config .Config.Inbox .Config.Inbox.Enabled}}hidden {{end}}space-y-4 mt-4">
+                {{.CSRFField}}
+
+                <div class="p-4 rounded-xl" style="background: rgba(245, 158, 11, 0.1);">
+                    <h3 class="font-medium text-warning mb-2">Gmail Setup Instructions</h3>
+                    <ol class="text-sm text-secondary space-y-1 list-decimal list-inside">
+                        <li>Enable 2-Step Verification in your Google Account</li>
+                        <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-accent hover:underline">App Passwords</a></li>
+                        <li>Create a new app password for "Mail"</li>
+                        <li>Enable IMAP in Gmail: Settings → See all settings → Forwarding and POP/IMAP</li>
+                    </ol>
+                </div>
+
+                <div>
+                    <label for="inbox_email" class="label">Gmail Address</label>
+                    <input type="email" name="inbox_email" id="inbox_email"
+                        value="{{if and .Config .Config.Inbox}}{{.Config.Inbox.Email}}{{else if .Config}}{{.Config.Profile.Email}}{{end}}"
+                        class="input"
+                        placeholder="you@gmail.com">
+                </div>
+
+                <div>
+                    <label for="inbox_password" class="label">App Password</label>
+                    <input type="password" name="inbox_password" id="inbox_password"
+                        value="{{if and .Config .Config.Inbox}}{{.Config.Inbox.Password}}{{end}}"
+                        class="input"
+                        placeholder="xxxx xxxx xxxx xxxx">
+                    <p class="text-xs text-muted mt-1">Your 16-character Google App Password (not your regular password)</p>
+                </div>
+
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Enable Inbox Monitoring
+                    </button>
+                    {{if and .Config .Config.Inbox .Config.Inbox.Enabled}}
+                    <button type="button" onclick="document.getElementById('inbox-form').classList.add('hidden')" class="btn btn-ghost">
+                        Cancel
+                    </button>
+                    {{end}}
+                </div>
+            </form>
+
+            {{if .InboxMessage}}
+            <div class="mt-4 p-3 rounded-lg {{if .InboxSuccess}}bg-green-500/10 text-green-400{{else}}bg-red-500/10 text-red-400{{end}}">
+                {{.InboxMessage}}
+            </div>
+            {{end}}
+        </div>
+
+        <!-- Request Options Section -->
+        <div class="card p-6">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: var(--accent-muted);">
+                    <svg class="w-5 h-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                </div>
+                <h2 class="font-display text-lg font-semibold text-primary">Request Options</h2>
+            </div>
+
+            {{if .Config}}
+            <div class="space-y-4">
+                <div class="flex items-start justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">Default Template</p>
+                    </div>
+                    <span class="badge badge-neutral">{{.Config.Options.Template}}</span>
+                </div>
+                <div class="flex items-start justify-between py-3 border-b border-[var(--border-subtle)]">
+                    <div>
+                        <p class="text-sm text-muted">Rate Limit</p>
+                        <p class="text-secondary">{{.Config.Options.RateLimitMs}}ms between emails</p>
+                    </div>
+                </div>
+                {{if .Config.Options.Regions}}
+                <div class="flex items-start justify-between py-3">
+                    <div>
+                        <p class="text-sm text-muted">Target Regions</p>
+                        <div class="flex gap-2 mt-1">
+                            {{range .Config.Options.Regions}}
+                            <span class="badge badge-neutral uppercase">{{.}}</span>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <p class="text-muted">No options configured.</p>
+            {{end}}
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card p-6" style="border-color: rgba(244, 63, 94, 0.3);">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: rgba(244, 63, 94, 0.15);">
+                    <svg class="w-5 h-5 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="font-display text-lg font-semibold text-error">Danger Zone</h2>
+                    <p class="text-sm text-muted">These actions are irreversible</p>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button class="btn btn-danger w-full justify-start">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Clear All History
+                </button>
+                <button class="btn btn-danger w-full justify-start">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Reset Configuration
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{template "layout" .}}
