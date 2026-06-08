@@ -402,7 +402,25 @@ func (s *Server) setupRouter() *chi.Mux {
 		})
 	})
 
-	// CSRF protection
+	// CSRF protection.
+	// PlaintextHTTPRequest (above) already handles same-origin validation for any
+	// host by comparing Origin == "http://" + Host. TrustedOrigins is a belt-and-
+	// suspenders list for the most common access patterns (localhost + LAN IPs).
+	trustedOrigins := []string{
+		"localhost",
+		"127.0.0.1",
+		fmt.Sprintf("localhost:%d", s.port),
+		fmt.Sprintf("127.0.0.1:%d", s.port),
+	}
+	// Allow any private LAN IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x) so that
+	// accessing the dashboard via a home-server IP doesn't trigger CSRF 403s.
+	if envOrigins := os.Getenv("ERASER_TRUSTED_ORIGINS"); envOrigins != "" {
+		for _, o := range strings.Split(envOrigins, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				trustedOrigins = append(trustedOrigins, o)
+			}
+		}
+	}
 	csrfMiddleware := csrf.Protect(
 		s.csrfKey,
 		csrf.Secure(false), // Cookie sent over HTTP; TLS (if any) terminates upstream
@@ -410,7 +428,18 @@ func (s *Server) setupRouter() *chi.Mux {
 		csrf.HttpOnly(true),
 		csrf.SameSite(csrf.SameSiteLaxMode), // Lax mode for form submissions
 		csrf.RequestHeader("X-CSRF-Token"),  // For HTMX AJAX requests
-		csrf.TrustedOrigins([]string{"localhost", "127.0.0.1", fmt.Sprintf("localhost:%d", s.port), fmt.Sprintf("127.0.0.1:%d", s.port)}),
+		csrf.TrustedOrigins(trustedOrigins),
+		csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Return JSON for API routes so JS callers get a parseable error,
+			// and a redirect for page routes so users see a helpful message.
+			if strings.HasPrefix(r.URL.Path, "/api/") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprintf(w, `{"error":"session_expired","message":"CSRF token invalid — please refresh the page"}`)
+				return
+			}
+			http.Error(w, "Session expired — please refresh the page and try again.", http.StatusForbidden)
+		})),
 	)
 	r.Use(csrfMiddleware)
 

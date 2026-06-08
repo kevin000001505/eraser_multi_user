@@ -326,7 +326,23 @@ async function startSendAll() {
             body: new URLSearchParams({ search, category, region })
         });
 
-        const data = await resp.json();
+        // Handle CSRF / auth failures
+        if (resp.status === 403) {
+            let msg = 'Session expired — please refresh the page and try again.';
+            try { const e = await resp.json(); if (e.message) msg = e.message; } catch(_) {}
+            showError(msg);
+            resetButton();
+            return;
+        }
+
+        let data;
+        try {
+            data = await resp.json();
+        } catch (_) {
+            showError('Unexpected server response (status ' + resp.status + '). Please refresh and try again.');
+            resetButton();
+            return;
+        }
 
         if (!resp.ok) {
             showError(data.error || 'Failed to start sending');
